@@ -398,6 +398,16 @@ namespace PdfSharp.Pdf
                             continue;
                         }
 
+                        // Is it a reference to an object that does not exist in the external document?
+                        if (!iot.Contains(iref.ObjectID))
+                        {
+                            // Yes: An indirect reference to an undefined object is treated as a reference
+                            // to the null object (ISO 32000-2, 7.3.10), and a dictionary entry whose value
+                            // is null is equivalent to an absent entry (7.3.7). So remove the entry.
+                            dict.Elements.Remove(name.Value);
+                            continue;
+                        }
+
                         //Debug.Assert(iref.Document == iot.Document);
                         // No: Replace with iref of cloned object.
                         var newXRef = iot[iref.ObjectID];  // TODO_OLD: Explain this line of code in all details.
@@ -455,6 +465,15 @@ namespace PdfSharp.Pdf
                         if (iref.Document == owner)
                         {
                             // Yes: fine. Happens when an already cloned object is reused.
+                            continue;
+                        }
+
+                        // Is it a reference to an object that does not exist in the external document?
+                        if (!iot.Contains(iref.ObjectID))
+                        {
+                            // Yes: An indirect reference to an undefined object is treated as a reference
+                            // to the null object (ISO 32000-2, 7.3.10).
+                            array.Elements[idx] = PdfNull.Value;
                             continue;
                         }
 
