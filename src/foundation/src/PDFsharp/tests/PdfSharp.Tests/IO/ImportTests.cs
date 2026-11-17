@@ -59,9 +59,41 @@ namespace PdfSharp.Tests.IO
             reloaded.PageCount.Should().Be(1);
         }
 
-        static byte[] CreatePdfWithReferencesToUndefinedObjects()
+        [Fact]
+        public void Open_and_import_document_with_external_file_stream()
         {
-            var objects = new[]
+            // Object 5 is a stream with an /F entry, i.e. a stream whose data is in an external file
+            // (ISO 32000-2, 7.3.8.2). InDesign files passed through Ghostscript contain such an object,
+            // left over from a C2PA manifest and referenced by nothing.
+            var bytes = CreatePdf(new[]
+            {
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 612 792 ] /Contents 6 0 R " +
+                    "/Resources << /Font << /F1 4 0 R >> >> >>",
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                "<< /Filter /FlateDecode /F << /Subtype (application/c2pa) /Length 20166 >> /Length 8 >>\nstream\n12345678\nendstream",
+                "<< /Length 41 >>\nstream\nBT /F1 12 Tf 72 720 Td (Hello World) Tj ET\nendstream"
+            });
+
+            using var source = PdfReader.Open(new MemoryStream(bytes), PdfDocumentOpenMode.Import);
+            using var target = new PdfDocument();
+
+            target.AddPage(source.Pages[0]);
+
+            var externalFileStream = (PdfDictionary)source.Internals.GetObject(new PdfObjectID(5))!;
+            externalFileStream.Elements.ContainsKey("/F").Should().BeTrue();
+            externalFileStream.Stream.Length.Should().Be(8);
+
+            using var stream = new MemoryStream();
+            target.Save(stream, false);
+            stream.Position = 0;
+            using var reloaded = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
+            reloaded.PageCount.Should().Be(1);
+        }
+
+        static byte[] CreatePdfWithReferencesToUndefinedObjects()
+            => CreatePdf(new[]
             {
                 "<< /Type /Catalog /Pages 2 0 R >>",
                 "<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>",
@@ -70,8 +102,10 @@ namespace PdfSharp.Tests.IO
                 "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
                 null, // Object 5 is free.
                 "<< /Length 41 >>\nstream\nBT /F1 12 Tf 72 720 Td (Hello World) Tj ET\nendstream"
-            };
+            });
 
+        static byte[] CreatePdf(string?[] objects)
+        {
             var pdf = new StringBuilder("%PDF-1.4\n");
             var offsets = new int[objects.Length];
             for (int idx = 0; idx < objects.Length; idx++)

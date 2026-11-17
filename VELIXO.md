@@ -13,6 +13,11 @@ The informational version is `6.2.4-velixo.N`, and the file version is `6.2.4.77
   present in the dictionary` when the page references objects that do not exist in the source file
   (seen in HP Exstream invoices). Such references are now treated as null (ISO 32000-2 7.3.10).
   See `PdfObject.FixUpObject` and `PdfSharp.Tests/IO/ImportTests.cs`.
+- **velixo.2** – `PdfReader.Open` threw `NotImplementedException: File streams are not yet implemented.` for any
+  file that contains a stream with an `/F` entry, even one that nothing references (seen in InDesign invoices
+  converted by Ghostscript, which leave a C2PA manifest object behind). Such a stream is now read like any other,
+  from the bytes between `stream` and `endstream`, and its dictionary is kept unchanged. See `Parser.GetStreamLength`
+  and `PdfSharp.Tests/IO/ImportTests.cs`.
 
 ## Building the binaries consumed by Velixo Reports Pro
 

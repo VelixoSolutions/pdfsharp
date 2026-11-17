@@ -421,8 +421,11 @@ namespace PdfSharp.Pdf.IO
         /// </summary>
         int GetStreamLength(PdfDictionary dict, SuppressExceptions? suppressObjectOrderExceptions)
         {
-            if (dict.Elements["/F"] != null)
-                throw new NotImplementedException("File streams are not yet implemented.");
+            // A stream with an /F entry keeps its data in an external file (ISO 32000-2, 7.3.8.2). PDFsharp does not
+            // read external files, but the bytes between 'stream' and 'endstream' must still be skipped to read the
+            // rest of the document. So such a stream is read like any other, and its dictionary is kept unchanged.
+            // Throwing here made every PDF with such a stream unreadable, even when nothing referenced the stream,
+            // e.g. InDesign files passed through Ghostscript, which leave a C2PA manifest object with /F behind.
 #if TEST_CODE_
             // By uncommenting this and the label below,
             // we simulate stream dictionaries without \Length entry.
