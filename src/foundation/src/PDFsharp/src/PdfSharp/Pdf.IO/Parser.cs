@@ -407,6 +407,15 @@ namespace PdfSharp.Pdf.IO
                 goto RetryReadStream;
             }
             // When we come here 'endstream' was successfully parsed and the logical position is behind it.
+
+            // /F puts the stream data in an external file, which PDFsharp does not read. ISO 32000-2 7.3.8.2 says to
+            // ignore the bytes in this file and /Filter, so keep an empty stream with no reference to the external file.
+            if (dict.Elements.ContainsKey("/F"))
+            {
+                foreach (var key in new[] { "/F", "/FFilter", "/FDecodeParms", "/Filter", "/DecodeParms", "/DL" })
+                    dict.Elements.Remove(key);
+                dict.Stream!.Value = [];
+            }
         }
 
         /// <summary>
@@ -421,11 +430,6 @@ namespace PdfSharp.Pdf.IO
         /// </summary>
         int GetStreamLength(PdfDictionary dict, SuppressExceptions? suppressObjectOrderExceptions)
         {
-            // A stream with an /F entry keeps its data in an external file (ISO 32000-2, 7.3.8.2). PDFsharp does not
-            // read external files, but the bytes between 'stream' and 'endstream' must still be skipped to read the
-            // rest of the document. So such a stream is read like any other, and its dictionary is kept unchanged.
-            // Throwing here made every PDF with such a stream unreadable, even when nothing referenced the stream,
-            // e.g. InDesign files passed through Ghostscript, which leave a C2PA manifest object with /F behind.
 #if TEST_CODE_
             // By uncommenting this and the label below,
             // we simulate stream dictionaries without \Length entry.

@@ -81,15 +81,53 @@ namespace PdfSharp.Tests.IO
 
             target.AddPage(source.Pages[0]);
 
+            // The bytes in the file and /Filter are ignored for a stream with /F (ISO 32000-2, 7.3.8.2).
             var externalFileStream = (PdfDictionary)source.Internals.GetObject(new PdfObjectID(5))!;
-            externalFileStream.Elements.ContainsKey("/F").Should().BeTrue();
-            externalFileStream.Stream.Length.Should().Be(8);
+            externalFileStream.Elements.ContainsKey("/F").Should().BeFalse();
+            externalFileStream.Elements.ContainsKey("/Filter").Should().BeFalse();
+            externalFileStream.Stream.Length.Should().Be(0);
+            externalFileStream.Elements.GetInteger("/Length").Should().Be(0);
 
             using var stream = new MemoryStream();
             target.Save(stream, false);
             stream.Position = 0;
             using var reloaded = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
             reloaded.PageCount.Should().Be(1);
+        }
+
+        [Fact]
+        public void Import_and_draw_on_page_that_uses_external_file_stream()
+        {
+            // The page content includes object 5, a stream whose data is in an external file on a network share.
+            // Its bytes in the file are not FlateDecode data, although /Filter says so.
+            var bytes = CreatePdf(new[]
+            {
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [ 3 0 R ] /Count 1 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [ 0 0 612 792 ] /Contents [ 6 0 R 5 0 R ] " +
+                    "/Resources << /Font << /F1 4 0 R >> >> >>",
+                "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                "<< /Filter /FlateDecode /F (\\\\\\\\fileserver\\\\share\\\\content.bin) /FFilter /FlateDecode /Length 8 >>\nstream\n12345678\nendstream",
+                "<< /Length 41 >>\nstream\nBT /F1 12 Tf 72 720 Td (Hello World) Tj ET\nendstream"
+            });
+
+            using var source = PdfReader.Open(new MemoryStream(bytes), PdfDocumentOpenMode.Import);
+            using var target = new PdfDocument();
+
+            var page = target.AddPage(source.Pages[0]);
+            using (var gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(page, PdfSharp.Drawing.XGraphicsPdfPageOptions.Append))
+                gfx.DrawLine(PdfSharp.Drawing.XPens.Black, 0, 0, 100, 100);
+
+            using var stream = new MemoryStream();
+            target.Save(stream, false);
+            Encoding.ASCII.GetString(stream.ToArray()).Should().NotContain("fileserver");
+
+            stream.Position = 0;
+            using var reloaded = PdfReader.Open(stream, PdfDocumentOpenMode.Import);
+            var contents = reloaded.Pages[0].Contents;
+            contents.Elements.Count.Should().BeGreaterThan(2);
+            for (int idx = 0; idx < contents.Elements.Count; idx++)
+                _ = contents.Elements.GetDictionary(idx)!.Stream.UnfilteredValue;
         }
 
         static byte[] CreatePdfWithReferencesToUndefinedObjects()

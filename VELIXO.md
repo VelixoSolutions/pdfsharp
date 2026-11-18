@@ -18,6 +18,11 @@ The informational version is `6.2.4-velixo.N`, and the file version is `6.2.4.77
   converted by Ghostscript, which leave a C2PA manifest object behind). Such a stream is now read like any other,
   from the bytes between `stream` and `endstream`, and its dictionary is kept unchanged. See `Parser.GetStreamLength`
   and `PdfSharp.Tests/IO/ImportTests.cs`.
+- **velixo.3** – a stream with an `/F` entry is now read as an empty stream, and `/F`, `/FFilter`, `/FDecodeParms`,
+  `/Filter`, `/DecodeParms` and `/DL` are removed from its dictionary, as ISO 32000-2 7.3.8.2 says to ignore the bytes
+  in the file and `/Filter`. In velixo.2, decoding the stream applied `/Filter` to bytes it does not describe, and an
+  imported page copied the reference to the external file, such as a network path, into the new document.
+  See `Parser.ReadDictionaryStream` and `PdfSharp.Tests/IO/ImportTests.cs`.
 
 ## Building the binaries consumed by Velixo Reports Pro
 
@@ -29,5 +34,8 @@ dotnet build src/foundation/src/shared/src/PdfSharp.Quality-gdi/PdfSharp.Quality
 dotnet build src/foundation/src/shared/src/PdfSharp.Snippets-gdi/PdfSharp.Snippets-gdi.csproj -c Release -f net462
 ```
 
-Add `-p:FileVersion=6.2.4.77NN` to each command (and build with the .NET 10 SDK, i.e. C# 14, like upstream 6.2.4).
-Build from a checkout of the `v6.2.4-velixo.N` tag so GitVersion stamps the right version.
+Add `-p:FileVersion=6.2.4.77NN -p:InformationalVersion=6.2.4-velixo.N` to each command, and build on Windows with
+the .NET 10 SDK (C# 14), like upstream 6.2.4, from a clone made with `git -c core.autocrlf=true clone`. Otherwise
+GitVersion stamps `6.2.4-velixo` without the number, and on Linux the source has LF line endings, so the DLL differs
+from the official build in more than the fixes.
+Build from a checkout of the `v6.2.4-velixo.N` tag, on a `release/6.2.4-velixo.N` branch.
